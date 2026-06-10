@@ -1,0 +1,25 @@
+# Single source of truth for everything configurable.
+# https is just a placeholder host; set this to the real app before running.
+base_url   = "https://myapp"          # no trailing slash
+output_dir = "downloads"              # where rescued files are written
+
+[reader]
+path        = "/main.view?reader=Reader#0"
+click_x     = 469                     # canvas click target (px from viewport top-left)
+click_y     = 303
+load_wait_s = 10                      # confirmed wait after navigation before clicking
+
+[network]
+nav_timeout_s      = 30               # page.goto timeout
+response_timeout_s = 30               # how long to wait for the openWithEditor response
+download_lang      = "pl"             # the &lang= value on dms download URLs
+
+[browser]
+viewport_width  = 1920                # confirmed: 1920x600 makes (469,303) land on the right target
+viewport_height = 600
+device_scale    = 1
+# Use the system-installed browser (no Playwright-bundled Chromium download).
+# On the target machine set channel = "chrome"; on this dev machine "chromium".
+# Leave channel = "" and set executable_path instead to point at a binary directly.
+channel         = "chromium"
+executable_path = ""

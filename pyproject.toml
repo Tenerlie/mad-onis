@@ -1,0 +1,19 @@
+[project]
+name = "mad-onis"
+version = "0.1.0"
+description = "yeah"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "playwright>=1.60.0",
+    "pytest>=9.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "python-minifier>=3.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
