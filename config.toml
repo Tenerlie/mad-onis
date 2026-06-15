@@ -5,7 +5,11 @@ base_url   = "https://myapp"          # no trailing slash
 # backslashes are taken verbatim, e.g. output_dir = 'C:\Users\Operator\Downloads'.
 # A double-quoted "C:\Users\..." is parsed as escape sequences and fails (\U -> hex).
 # Forward slashes work too and are accepted by Windows: "C:/Users/Operator/Downloads".
-output_dir = 'downloads'              # where rescued files are written
+output_dir = 'downloads'              # where rescued files are written (grouped into per-element subfolders)
+# State DB tracking what's already downloaded, so re-runs skip finished files.
+# Relative paths resolve next to this config (alongside logs/). Single-quote
+# Windows paths, e.g. db_path = 'C:\Users\Operator\madonis.db'.
+db_path    = 'madonis.db'
 
 [reader]
 path        = "/main.view?reader=Reader#0"
