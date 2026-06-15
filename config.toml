@@ -1,7 +1,11 @@
 # Single source of truth for everything configurable.
 # https is just a placeholder host; set this to the real app before running.
 base_url   = "https://myapp"          # no trailing slash
-output_dir = "downloads"              # where rescued files are written
+# Filesystem path. Use single quotes (TOML "literal string") so Windows
+# backslashes are taken verbatim, e.g. output_dir = 'C:\Users\Operator\Downloads'.
+# A double-quoted "C:\Users\..." is parsed as escape sequences and fails (\U -> hex).
+# Forward slashes work too and are accepted by Windows: "C:/Users/Operator/Downloads".
+output_dir = 'downloads'              # where rescued files are written
 
 [reader]
 path        = "/main.view?reader=Reader#0"
@@ -21,5 +25,11 @@ device_scale    = 1
 # Use the system-installed browser (no Playwright-bundled Chromium download).
 # On the target machine set channel = "chrome"; on this dev machine "chromium".
 # Leave channel = "" and set executable_path instead to point at a binary directly.
+# executable_path is a filesystem path: single-quote it on Windows so backslashes
+# are literal, e.g. executable_path = 'C:\Program Files\Google\Chrome\chrome.exe'.
 channel         = "chromium"
-executable_path = ""
+executable_path = ''
+# Debugging: set headless = false to watch the browser, or pass --headed on the CLI.
+# slow_mo_ms slows every action so clicks/navigation are visible (CLI: --slow-mo MS).
+headless        = true
+slow_mo_ms      = 0

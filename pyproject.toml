@@ -1,7 +1,7 @@
 [project]
 name = "mad-onis"
 version = "0.1.0"
-description = "yeah"
+description = "Canvas-app document scraper: drives a canvas-only web app by coordinates + network interception to rescue documents."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

@@ -7,10 +7,11 @@ _EXT_ID_RE=re.compile('ext-(\\d+)')
 class ReaderSession:
 	def __init__(self,config):self.config=config;self._pw=None;self._browser=None;self._context=None;self.page=None;(self._future):asyncio.Future|None=None
 	async def __aenter__(self)->'ReaderSession':
-		b=self.config.browser;launch_kwargs:dict={'headless':True}
+		b=self.config.browser;launch_kwargs:dict={'headless':b.headless}
+		if b.slow_mo_ms:launch_kwargs['slow_mo']=b.slow_mo_ms
 		if b.channel:launch_kwargs['channel']=b.channel
 		if b.executable_path:launch_kwargs['executable_path']=b.executable_path
-		self._pw=await async_playwright().start();log.info('Launching browser (channel=%r, executable_path=%r)',b.channel,b.executable_path);self._browser=await self._pw.chromium.launch(**launch_kwargs);self._context=await self._browser.new_context(viewport={'width':b.viewport_width,'height':b.viewport_height},device_scale_factor=b.device_scale);self.page=await self._context.new_page();self._future=asyncio.get_running_loop().create_future();self.page.on('response',lambda resp:asyncio.create_task(self._on_response(resp)));return self
+		self._pw=await async_playwright().start();log.info('Launching browser (headless=%s, slow_mo_ms=%g, channel=%r, executable_path=%r)',b.headless,b.slow_mo_ms,b.channel,b.executable_path);self._browser=await self._pw.chromium.launch(**launch_kwargs);self._context=await self._browser.new_context(viewport={'width':b.viewport_width,'height':b.viewport_height},device_scale_factor=b.device_scale);self.page=await self._context.new_page();self._future=asyncio.get_running_loop().create_future();self.page.on('response',lambda resp:asyncio.create_task(self._on_response(resp)));return self
 	async def __aexit__(self,*exc)->None:
 		for closer in(self._context,self._browser):
 			try:
@@ -34,7 +35,10 @@ class ReaderSession:
 		try:await self.page.wait_for_load_state('networkidle',timeout=self.config.reader.load_wait_s*1000)
 		except Exception:pass
 		log.info('Waiting %.1fs for the reader to settle',self.config.reader.load_wait_s);await asyncio.sleep(self.config.reader.load_wait_s)
-	async def click_target(self)->None:x,y=self.config.reader.click_x,self.config.reader.click_y;log.info('Clicking canvas at (%d, %d)',x,y);await self.page.mouse.click(x,y)
+	async def click_target(self)->None:x,y=self.config.reader.click_x,self.config.reader.click_y;log.info('Clicking canvas at (%d, %d)',x,y);await self._show_click_marker(x,y);await self.page.mouse.move(x,y,steps=20);await self.page.mouse.click(x,y)
+	async def _show_click_marker(self,x:int,y:int)->None:
+		try:await self.page.evaluate("([x, y]) => {\n                    const ring = document.createElement('div');\n                    Object.assign(ring.style, {\n                        position: 'fixed', left: (x - 18) + 'px', top: (y - 18) + 'px',\n                        width: '36px', height: '36px', boxSizing: 'border-box',\n                        border: '3px solid red', borderRadius: '50%',\n                        background: 'rgba(255,0,0,0.25)', zIndex: 2147483647,\n                        pointerEvents: 'none', transition: 'opacity 1s ease-out',\n                    });\n                    document.body.appendChild(ring);\n                    setTimeout(() => { ring.style.opacity = '0'; }, 900);\n                    setTimeout(() => { ring.remove(); }, 2000);\n                }",[x,y])
+		except Exception:pass
 	async def wait_for_open_with_editor(self)->dict:log.info('Waiting for openWithEditor response (timeout %.1fs)',self.config.network.response_timeout_s);return await asyncio.wait_for(self._future,timeout=self.config.network.response_timeout_s)
 	async def read_ext_base(self)->int:
 		raw=await self.page.evaluate("() => (typeof Ext !== 'undefined' && Ext.id) ? Ext.id() : null");log.info('Ext.id() raw output: %r',raw);match=_EXT_ID_RE.search(str(raw or''))
