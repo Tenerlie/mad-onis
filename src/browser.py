@@ -1,7 +1,10 @@
 from __future__ import annotations
 import asyncio,json,logging,re
+from datetime import datetime,timezone
+from pathlib import Path
 from playwright.async_api import async_playwright
 log=logging.getLogger(__name__)
+_DUMP_DIR=Path(__file__).resolve().parent.parent/'logs'
 _SKIP_PREFIXES='image/','video/','audio/','font/','application/octet-stream'
 _EXT_ID_RE=re.compile('ext-(\\d+)')
 class ReaderSession:
@@ -29,7 +32,10 @@ class ReaderSession:
 		try:data=json.loads(body)
 		except Exception:return
 		if isinstance(data,dict)and data.get('openWithEditor')is True:
-			if not self._future.done():log.info('Captured openWithEditor response: %s',response.url);self._future.set_result(data)
+			if not self._future.done():log.info('Captured openWithEditor response: %s',response.url);self._dump_response(response.url,body);self._future.set_result(data)
+	def _dump_response(self,url:str,body:str)->None:
+		try:_DUMP_DIR.mkdir(parents=True,exist_ok=True);stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S_%fZ');path=_DUMP_DIR/f"openWithEditor-{stamp}.json";path.write_text(body,encoding='utf-8');log.info('Dumped raw response (%d bytes) to %s',len(body),path)
+		except Exception as exc:log.warning('Could not dump response body: %s',exc)
 	async def navigate(self)->None:
 		url=self.config.reader_url;log.info('Navigating to %s',url);await self.page.goto(url,timeout=self.config.network.nav_timeout_s*1000)
 		try:await self.page.wait_for_load_state('networkidle',timeout=self.config.reader.load_wait_s*1000)
