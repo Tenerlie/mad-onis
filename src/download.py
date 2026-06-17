@@ -5,6 +5,7 @@ from email.message import Message
 from pathlib import Path
 from urllib.parse import unquote
 from src import db
+from src.extract import DocumentRef
 log=logging.getLogger(__name__)
 _FETCH_JS="\nasync (url) => {\n  const resp = await fetch(url, { credentials: 'include' });\n  const buf = await resp.arrayBuffer();\n  const bytes = new Uint8Array(buf);\n  let binary = '';\n  const chunk = 0x8000;\n  for (let i = 0; i < bytes.length; i += chunk) {\n    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));\n  }\n  return {\n    status: resp.status,\n    contentDisposition: resp.headers.get('content-disposition'),\n    contentType: resp.headers.get('content-type'),\n    bodyB64: btoa(binary),\n  };\n}\n"
 @dataclass
@@ -17,9 +18,9 @@ def filename_from_headers(content_disposition:str|None,content_type:str|None,doc
 def resolve_filename(ref,content_disposition:str|None,content_type:str|None,doc_id:str)->str:
 	name=getattr(ref,'name',None)
 	if not name:return filename_from_headers(content_disposition,content_type,doc_id)
-	clean=_sanitize(unquote(name))
-	if Path(clean).suffix:return clean
-	ext=_cd_extension(content_disposition)or _guess_extension(content_type);return _sanitize(f"{clean}{ext}")if ext else clean
+	clean=_sanitize(unquote(name));ext=_cd_extension(content_disposition)or _guess_extension(content_type)
+	if ext and not clean.lower().endswith(ext.lower()):clean=_sanitize(f"{clean}{ext}")
+	return clean
 def _cd_extension(content_disposition:str|None)->str:
 	if not content_disposition:return''
 	msg=Message();msg['content-disposition']=content_disposition;name=msg.get_filename();return Path(unquote(name)).suffix if name else''
@@ -38,6 +39,17 @@ def _unique_path(directory:Path,filename:str,used:set[str])->Path:
 		stem,dot,ext=filename.partition('.');i=1
 		while taken(candidate):candidate=f"{stem}_{i}{dot}{ext}"if dot else f"{stem}_{i}";i+=1
 	used.add(candidate);return directory/candidate
+def repair_filenames(config,conn)->tuple[int,int]:
+	out_dir=config.output_dir;renamed=correct=0;used:dict[Path,set[str]]={}
+	for row in db.done_rows(conn):
+		relpath=row['relpath']
+		if not relpath:continue
+		old=out_dir/relpath
+		if not old.exists():log.warning('Recorded file missing, skipping repair: %s',relpath);continue
+		ref=DocumentRef(row['doc_id'],row['name'],row['folder']);new_name=resolve_filename(ref,None,row['content_type'],row['doc_id'])
+		if new_name==old.name:correct+=1;continue
+		dest=_unique_path(old.parent,new_name,used.setdefault(old.parent,set()));old.rename(dest);new_rel=dest.relative_to(out_dir).as_posix();db.set_saved(conn,row['doc_id'],dest.name,new_rel);log.info('Repaired %s -> %s',relpath,new_rel);renamed+=1
+	return renamed,correct
 async def download_documents(page,config,conn,items,ext_base:int)->list[DownloadResult]:
 	out_dir=config.output_dir;out_dir.mkdir(parents=True,exist_ok=True);results:list[DownloadResult]=[];used_names:dict[Path,set[str]]={};total=len(items)
 	for(n,(orig_index,ref))in enumerate(items):
